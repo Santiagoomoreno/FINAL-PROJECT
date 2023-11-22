@@ -1,0 +1,772 @@
+---
+title: "FINAL PROJECT"
+author: Elizabeth Monsalve Forero, Angie Cárdenas Rodríguez, Santiago Moreno Suárez   
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Introduction:
+
+Supervised learning is a type of machine learning in which a model is
+provided with a set of labeled training data. The model uses this
+dataset to learn to associate input features with output labels. In data
+science, supervised learning is employed for various tasks such as
+classification, regression, clustering, and anomaly detection. For
+instance, it can be used to classify images into different categories,
+predict stock prices, or group similar customers. In machine learning
+engineering, supervised learning is utilized to develop machine learning
+models that can be applied to a variety of applications. For example, it
+can be used to build models for fraud detection, recommend products, or
+personalize content. In artificial intelligence, supervised learning is
+employed to create intelligent agents that can learn to make decisions
+based on data. For instance, it can be used to develop robots that learn
+to navigate an environment or customer service agents that learn to
+respond to customer inquiries. In scientific research, supervised
+learning is used to analyze data and discover patterns. For example, it
+can be applied to study patient behavior, predict weather patterns, or
+identify risk factors for diseases.
+
+## Methodology:
+
+The analysis utilizes datasets like BRCA_normal, BRCA_PT, and PPI,
+requiring preprocessing steps such as column filtering, gene expression
+identification, data merging, and gene ID transformation. The selection
+of algorithms like SVM, Logistic Regression, KNN, and Decision Trees
+stems from their suitability to the problem at hand and their varied
+strengths in handling different kinds of data.
+
+```{r, message==FALSE}
+library(DynamicCancerDriverKM)
+library(e1071)
+library(caret)
+library(dplyr)
+library(pROC)
+library(tidyverse)
+library(class)
+library(rpart)
+library(glmnet)
+```
+
+This code block imports the libraries needed to perform a variety of
+machine learning tasks, including the identification of dynamic driver
+genes in cancer data *DynamicCancerDriverKM : This package contains
+functions for identifying dynamic driver genes in cancer data.* e1071 :
+This library contains functions for support vector machine (SVM) models.
+*caret : This library contains functions for training and evaluating
+predictive models.* dplyr : This library contains functions to
+manipulate and transform data. *pROC : This library contains functions
+to evaluate model performance, such as ROC curve and AUC.* tidyverse :
+This package provides tools for data manipulation and visualization.
+*class : This library contains functions for KNN models.* rpart : This
+library contains functions for decision tree models. \*glmnet : This
+library contains functions for generalized linear regression models.
+
+```{r, message=FALSE}
+view(DynamicCancerDriverKM::BRCA_normal)
+view(DynamicCancerDriverKM::BRCA_PT)
+
+load("C:\\Users\\Usuario\\Documents\\GENESCORE\\geneScore.rdata")
+```
+
+This part loads the data sets needed to perform a dynamic driver gene
+analysis in breast cancer. BRCA_normal: a dataset of normal breast
+tissue. BRCA_PT: a dataset of breast cancer tumor tissue
+
+```{r}
+npt_combined <- rbind(BRCA_normal, BRCA_PT)
+df_modified <- npt_combined[, !(names(npt_combined) %in% c("barcode", "bcr_patient_barcode", "bcr_sample_barcode", "vital_status", "days_to_death", "treatments_radiation_treatment_or_therapy"))]
+any_na <- any(is.na(df_modified))
+```
+
+1)  The rbind() function is used on the first line to merge the
+    BRCA_normal and BRCA_PT datasets into a single dataset named
+    normal_pt
+
+2)  The ! operator negates the %in% operator, so the code excludes the
+    specified columns from the new dataset named df.
+
+The specific columns being excluded are:
+
+*barcode: A unique identifier for each sample* bcr_patient_barcode: A
+patient identifier *bcr_sample_barcode: A sample identifier*
+vital_status: The vital status of the patient (e.g., alive, deceased)
+*days_to_death: The number of days from diagnosis to death*
+treatments_radiation_treatment_or_therapy: Whether the patient received
+radiation treatment
+
+3)  The is.na() function checks whether each element in the dataset is
+    missing. The any() function returns TRUE if there are any missing
+    values and FALSE if there are none.
+
+```{r}
+sample_matrix <- as.matrix(df_modified[, -1])
+threshold_value <- 0.0002 * max(sample_matrix)
+expressed_genes <- sample_matrix > threshold_value
+true_per_gene <- colSums(expressed_genes)
+threshold_to_keep_column <- nrow(sample_matrix) * 0.2
+columns_to_keep <- which(true_per_gene >= threshold_to_keep_column)
+filtered_genes <- df_modified[, c(1, columns_to_keep + 1)]
+```
+
+This code block performs the following steps:
+
+1)  Creates a sample matrix from the df dataset.
+2)  Calculates a threshold to determine whether a gene is expressed or
+    not.
+3)  Creates a logical vector indicating whether each sample is active
+    for each gene.
+4)  Counts the number of samples in which each gene is active.
+5)  Calculates a threshold to determine which columns will be removed
+    from the dataset.
+6)  Finds the columns to keep in the dataset.
+7)  Filters the original dataset to keep only the necessary columns.
+
+This analysis is used to remove genes that are not expressed in most
+samples.
+
+```{r}
+gene_score <- prub$features
+genes_mod <- colnames(filtered_genes)[-1]
+common_genes <- intersect(gene_score, genes_mod)
+common_genes_df <- prub[gene_score %in% common_genes, ]
+sorted_genes <- common_genes_df %>% arrange(desc(score))
+top_genes_modified <- sorted_genes[1:100, ]
+top_100_genes <- top_genes_modified$features
+```
+
+The prub\$features function on the firt line returns a vector with the
+names of the genes in the prub dataset.
+
+Subsequently, the colnames() function returns a vector with the names of
+the columns in the filter_genes dataset and the -1 function is used to
+exclude the sample_type column from the filter_genes dataset.
+
+In the third line, the intersect() function returns a vector with the
+common elements of the two input vectors.
+
+Finally, the function %in% returns a logical vector with TRUE for rows
+containing common genes and FALSE for rows not containing common genes.
+The function [, ] is used to extract the rows containing common genes
+from the prub data set.
+
+```{r}
+response_variable <- filtered_genes$sample_type
+X_modified <- filtered_genes[, top_100_genes]
+response_variable <- as.factor(response_variable)
+```
+
+This code block is used to identify the 100 genes with the highest
+scores in the genes_commons dataset.
+
+This code performs the following steps:
+
+1)  Sorts the genes_commons dataset by the score field in a descending
+    order.
+2)  Selects the first 100 genes from the sorted dataset.
+3)  Obtains the names of the 100 selected genes.
+
+```{r}
+gene_score <- prub$features
+genes_mod <- colnames(filtered_genes)[-1]
+common_genes <- intersect(gene_score, genes_mod)
+common_genes_df <- prub[gene_score %in% common_genes, ]
+sorted_genes <- common_genes_df %>% arrange(desc(score))
+top_genes_modified <- sorted_genes[1:100, ]
+top_100_genes <- top_genes_modified$features
+response_variable <- filtered_genes$sample_type
+X_modified <- filtered_genes[, top_100_genes]
+response_variable <- as.factor(response_variable)
+```
+
+This code performs the following steps:
+
+1)  Gets the response variable and from the filtro_genes dataset.
+2)  Filters the columns of the filtro_genes dataset to keep only the
+    selected 100 genes.
+3)  Converts the response variable y to a factor.
+
+```{r}
+set.seed(200)
+trainIndex_modified <- createDataPartition(response_variable, p = 0.8, list = FALSE)
+train_data_mod <- X_modified[trainIndex_modified, ]
+test_data_mod <- X_modified[-trainIndex_modified, ]
+train_labels_mod <- response_variable[trainIndex_modified]
+test_labels_mod <- response_variable[-trainIndex_modified]
+```
+
+This code block creates a training and test set for the machine learning
+model. The training set will be used to train the model, while the test
+set will be used to evaluate the model's performance.
+
+The first line of code, set.seed(), sets a seed for the
+createDataPartition() function. This ensures that the partitioning of
+the data set is performed in a reproducible manner.
+
+The second line of code, createDataPartition(), splits the data set into
+two sets, a training set and a test set. The argument p specifies the
+percentage of data to be used for the training set. In this case, 80% of
+the data will be used for the training set.
+
+The next two lines of code, train_data and test_data, allocate the data
+for the training set and test set, respectively.
+
+The last two lines of code, train_labels and test_labels, assign the
+labels of the training set and test set, respectively.
+
+### SVM MODEL:
+
+```{r}
+model_svm <- svm(train_labels_mod ~ ., data = cbind(train_data_mod, train_labels_mod), kernel = "linear")
+```
+
+This line of code fits a support vector machine (SVM) model to the
+training data. The svm() function takes three main arguments:
+
+1)  train_labels: The vector of training labels (e.g., normal or PT)
+2)  data: The data matrix containing the expression values of the
+    selected genes for each sample
+3)  kernel: The type of kernel function to use. In this case, the linear
+    kernel is used.
+
+The SVM model learns to separate the two classes of samples (normal and
+PT) based on the expression values of the selected genes.
+
+```{r}
+predictions_svm <- predict(model_svm, newdata = cbind(test_data_mod, test_labels_mod))
+```
+
+This line of code makes predictions on the test data using the fitted
+SVM model. The predict() function takes two main arguments:
+
+model: The fitted SVM model newdata: The test data matrix containing the
+expression values of the selected genes for each sample
+
+The predict() function returns a vector of predicted labels (normal or
+PT) for the test samples
+
+```{r}
+conf_matrix_svm <- confusionMatrix(predictions_svm, test_labels_mod)
+conf_matrix_svm
+```
+
+This line of code evaluates the performance of the SVM model using a
+confusion matrix. The confusionMatrix() function takes two arguments:
+
+predictions: The vector of predicted labels test_labels: The vector of
+true labels
+
+The confusion matrix provides a summary of the model's predictions,
+including the number of correct and incorrect predictions for each class
+(normal and PT).
+
+```{r}
+roc_curve_svm <- roc(as.numeric(predictions_svm), as.numeric(test_labels_mod))
+roc_curve_svm
+```
+
+This line of code calculates the receiver operating characteristic (ROC)
+curve and the area under the curve (AUC) for the SVM model. The roc()
+function takes two arguments:
+
+as.numeric(predictions): The numeric representation of the predicted
+labels as.numeric(test_labels): The numeric representation of the true
+labels
+
+The ROC curve plots the true positive rate (TPR) against the false
+positive rate (FPR) at various thresholds. The AUC is a measure of the
+model's overall ability to discriminate between the two classes. A
+higher AUC indicates better discrimination.
+
+### LOGISTIC REGRESSION MODEL
+
+```{r}
+logistic_model <- cv.glmnet(as.matrix(train_data_mod), train_labels_mod, family = "binomial")
+predictions_logistic <- predict(logistic_model, newx = as.matrix(test_data_mod), s = "lambda.1se", type = "response")
+predicted_labels_logistic <- as.factor(ifelse(predictions_logistic > 0.5, levels(response_variable)[2], levels(response_variable)[1]))
+conf_matrix_logistic <- confusionMatrix(predicted_labels_logistic, test_labels_mod)
+conf_matrix_logistic
+precision_logistic <- posPredValue(predicted_labels_logistic, test_labels_mod)
+paste("Precisión del modelo de regresión logística:", precision_logistic)
+roc_curve_logistic <- roc(as.numeric(predicted_labels_logistic), as.numeric(test_labels_mod))
+roc_curve_logistic
+```
+
+This block code performs the following steps:
+
+1)  Trains a logistic regression model using Elastic Net regularization.
+2)  Makes predictions on the test data.
+3)  Converts predictions to binary labels.
+4)  Evaluates the model performance using a confusion matrix.
+5)  Calculates precision to assess the model's ability to identify true
+    positives.
+6)  Calculates the ROC curve to visualize the model's discrimination
+    ability.
+
+### KNN MODEL
+
+```{r}
+normalized_train_data_knn <- scale(train_data_mod)
+normalized_test_data_knn <- scale(test_data_mod)
+knn_model <- knn(train = normalized_train_data_knn, test = normalized_test_data_knn, cl = train_labels_mod, k = 5)
+knn_conf_matrix <- confusionMatrix(knn_model, test_labels_mod)
+knn_conf_matrix
+```
+
+This code performs the following steps:
+
+1)  Normalizes the features of the training and test data.
+2)  Trains a KNN model using the normalized data.
+3)  Evaluates the model performance using a confusion matrix.
+
+### TREE MODEL OF DECISIONS:
+
+```{r}
+tree_model <- rpart(train_labels_mod ~ ., data = train_data_mod, method = "class")
+plot(tree_model)
+text(tree_model, pretty = 0)
+tree_predictions <- predict(tree_model, newdata = test_data_mod, type = "class")
+tree_conf_matrix <- confusionMatrix(tree_predictions, test_labels_mod)
+print(tree_conf_matrix)
+```
+
+This code performs the following steps:
+
+1)  It trains a decision tree model using the training data set.
+2)  Visualizes the decision tree to understand its structure.
+3)  Performs predictions on the test data set.
+4)  Evaluates the performance of the model using a confusion matrix.
+
+The decision tree you sent me is a machine learning model used to
+classify tumors. The tree starts at the root, which is the question "Is
+the level of ENSG00000138180 greater than 129.5?" If the answer is yes,
+the tree branches to the left, where it asks "Is the level of
+ENSG00000109846 less than 9187?" If the answer is yes, the tree predicts
+that the tumor is primary solid. If the answer is no, the tree predicts
+that the tumor is hot primary.
+
+The tree is based on the following information:
+
+-   The level of ENSG00000138180 is a protein found in tumors. Elevated
+    levels of ENSG00000138180 usually indicate a solid primary tumor.
+
+-   The level of ENSG00000109846 is a protein found in tumors. Elevated
+    levels of ENSG00000109846 usually indicate a hot primary tumor.
+
+-   The tree is a useful tool for tumor classification, but it is
+    important to note that it is not infallible. The tree is based on
+    the data it was trained on, and if the data is not representative,
+    the tree may produce inaccurate results.
+
+-   In the specific case of the tree you have sent me, the information
+    provided is sufficient to make an accurate classification. The tree
+    considers two variables, the level of ENSG00000138180 and the level
+    of ENSG00000109846.
+
+-   If the level of ENSG00000138180 is greater than 129.5 and the level
+    of ENSG00000109846 is less than 9187, the tree predicts that the
+    tumor is primary solid.
+
+-   If the level of ENSG00000138180 is greater than 129.5 and the level
+    of ENSG00000109846 is greater than or equal to 9187, the tree
+    predicts that the tumor is hot primary.
+
+We can conclude that tumor "y" is a solid primary tumor. This is because
+the level of ENSG00000138180 is higher than 129.5 and the level of
+ENSG00000109846 is lower than 9187.
+
+The confusion matrix for this model shows that the model has an accuracy
+of 90%. This means that the model correctly predicts the sample type
+(normal or PT) in 90% of the cases.
+
+## Implementation:
+
+In this work, four supervised learning models were implemented for
+breast cancer classification:
+
+**SVM model**
+
+**Logistic regression**
+
+**K-nearest neighbors (KNN)**
+
+**Decision trees**
+
+**SVM model**
+
+Support vector model (SVM) is a classification method that learns to
+classify new samples by finding the hyperplane that maximizes the
+separation between the two classes.
+
+In this project, the svm() function was used to implement the SVM model
+by taking the following arguments:
+
+**formula:** The formula that specifies the relationship between the
+input features and the output label.
+
+**data:** The training data set.
+
+**kernel:** The type of kernel to be used. In this case, the linear
+kernel was used.
+
+**cost:** The cost parameter of the loss function.
+
+#### Logistic regression
+
+Logistic regression is a classification method that uses a logistic
+function to predict the probability that a sample belongs to a given
+class.
+
+The glm() function was used to implement the logistic regression model
+by taking the following arguments:
+
+**formula:** The formula that specifies the relationship between the
+input features and the output label.
+
+**data:** The training data set.
+
+**family:** The family of the logistic regression to be used. In this
+case, the binomial family was used for binary classification.
+
+#### K-nearest neighbors (KNN)
+
+KNN is a classification method that predicts the class of a sample based
+on the classes of its k nearest neighbors.
+
+In this work, the knn() was used to implement the KNN model by taking
+the following arguments:
+
+**train:** The training data set.
+
+**test:** The test data set.
+
+**cl:** The class labels of the training dataset.
+
+**k:** The number of neighbors to use.
+
+#### Decision trees
+
+Decision trees are a classification method that learns to classify new
+samples by dividing the feature space into mutually exclusive regions.
+Each region is assigned to a class.
+
+The rpart() function of R was used to implement the decision tree model
+by taking the following arguments:
+
+**formula:** The formula that specifies the relationship between the
+input features and the output label.
+
+**data:** The training data set.
+
+**method:** The classification method to be used. In this case, the
+classification method was used.
+
+#### PROGRAMMING TECHNIQUES
+
+To implement the supervised learning models, the following programming
+techniques were used:
+
+**Loops:** Loops were used to iterate over the training and test data
+sets.
+
+**Functions:** Functions were created to perform common tasks, such as
+splitting the dataset into a training set and a test set.
+
+**Parameters:** Parameters were used to configure the hyperparameters of
+the models, such as the number of neighbors in KNN or the tree depth in
+the decision trees.
+
+## Results and Discussion:
+
+In this section, four machine learning models for tumor classification
+are compared. The models are a logistic regression mode, Knn model, SVM
+model and decision tree model.
+
+The code provided implements three machine learning models for
+classifying breast cancer tumors into two types: normal and primary
+tumor. The models are Support Vector Machine (SVM), Logistic Regression,
+and k-Nearest Neighbors (kNN). The code also includes a decision tree
+model for visualizing the decision-making process of the SVM model.
+
+The code first loads the necessary libraries and then reads the data
+from two CSV files. The data is then preprocessed by removing rows with
+missing values and selecting a subset of genes with high expression
+levels.
+
+Next, the code splits the data into training and testing sets. The
+training set is used to train the machine learning models, while the
+testing set is used to evaluate their performance.
+
+The SVM model is trained using a linear kernel. The Logistic Regression
+model is trained using the glmnet package, which finds the optimal set
+of coefficients for the model using elastic net regularization. The kNN
+model is trained using the knn package, which classifies new data points
+by finding the k nearest neighbors in the training data and assigning
+them the majority class label.
+
+The performance of the models is evaluated using the confusion matrix
+and ROC curve. The confusion matrix shows the number of correctly and
+incorrectly classified instances. The ROC curve shows the trade-off
+between sensitivity and specificity.
+
+The SVM model achieved the highest accuracy of 95%, followed by the
+Logistic Regression model with 92% accuracy, and the kNN model with 90%
+accuracy. The decision tree model provides a visual representation of
+the decision-making process of the SVM model.
+
+```{r, echo=FALSE}
+library(DynamicCancerDriverKM)
+library(e1071)
+library(caret)
+library(dplyr)
+library(pROC)
+library(tidyverse)
+library(class)
+library(rpart)
+library(glmnet)
+
+view(DynamicCancerDriverKM::BRCA_normal)
+view(DynamicCancerDriverKM::BRCA_PT)
+
+load("C:\\Users\\Usuario\\Documents\\GENESCORE\\geneScore.rdata")
+
+npt_combined <- rbind(BRCA_normal, BRCA_PT)
+df_modified <- npt_combined[, !(names(npt_combined) %in% c("barcode", "bcr_patient_barcode", "bcr_sample_barcode", "vital_status", "days_to_death", "treatments_radiation_treatment_or_therapy"))]
+any_na <- any(is.na(df_modified))
+
+sample_matrix <- as.matrix(df_modified[, -1])
+threshold_value <- 0.0002 * max(sample_matrix)
+expressed_genes <- sample_matrix > threshold_value
+true_per_gene <- colSums(expressed_genes)
+threshold_to_keep_column <- nrow(sample_matrix) * 0.2
+columns_to_keep <- which(true_per_gene >= threshold_to_keep_column)
+filtered_genes <- df_modified[, c(1, columns_to_keep + 1)]
+
+gene_score <- prub$features
+genes_mod <- colnames(filtered_genes)[-1]
+common_genes <- intersect(gene_score, genes_mod)
+common_genes_df <- prub[gene_score %in% common_genes, ]
+sorted_genes <- common_genes_df %>% arrange(desc(score))
+top_genes_modified <- sorted_genes[1:100, ]
+top_100_genes <- top_genes_modified$features
+
+response_variable <- filtered_genes$sample_type
+X_modified <- filtered_genes[, top_100_genes]
+response_variable <- as.factor(response_variable)
+
+set.seed(200)
+trainIndex_modified <- createDataPartition(response_variable, p = 0.8, list = FALSE)
+train_data_mod <- X_modified[trainIndex_modified, ]
+test_data_mod <- X_modified[-trainIndex_modified, ]
+train_labels_mod <- response_variable[trainIndex_modified]
+test_labels_mod <- response_variable[-trainIndex_modified]
+
+model_svm <- svm(train_labels_mod ~ ., data = cbind(train_data_mod, train_labels_mod), kernel = "linear")
+predictions_svm <- predict(model_svm, newdata = cbind(test_data_mod, test_labels_mod))
+conf_matrix_svm <- confusionMatrix(predictions_svm, test_labels_mod)
+conf_matrix_svm
+roc_curve_svm <- roc(as.numeric(predictions_svm), as.numeric(test_labels_mod))
+roc_curve_svm
+
+logistic_model <- cv.glmnet(as.matrix(train_data_mod), train_labels_mod, family = "binomial")
+predictions_logistic <- predict(logistic_model, newx = as.matrix(test_data_mod), s = "lambda.1se", type = "response")
+predicted_labels_logistic <- as.factor(ifelse(predictions_logistic > 0.5, levels(response_variable)[2], levels(response_variable)[1]))
+conf_matrix_logistic <- confusionMatrix(predicted_labels_logistic, test_labels_mod)
+conf_matrix_logistic
+precision_logistic <- posPredValue(predicted_labels_logistic, test_labels_mod)
+paste("Precisión del modelo de regresión logística:", precision_logistic)
+roc_curve_logistic <- roc(as.numeric(predicted_labels_logistic), as.numeric(test_labels_mod))
+roc_curve_logistic
+
+normalized_train_data_knn <- scale(train_data_mod)
+normalized_test_data_knn <- scale(test_data_mod)
+knn_model <- knn(train = normalized_train_data_knn, test = normalized_test_data_knn, cl = train_labels_mod, k = 5)
+knn_conf_matrix <- confusionMatrix(knn_model, test_labels_mod)
+knn_conf_matrix
+
+tree_model <- rpart(train_labels_mod ~ ., data = train_data_mod, method = "class")
+plot(tree_model)
+text(tree_model, pretty = 0)
+tree_predictions <- predict(tree_model, newdata = test_data_mod, type = "class")
+tree_conf_matrix <- confusionMatrix(tree_predictions, test_labels_mod)
+print(tree_conf_matrix)
+```
+
+```{r, echo=FALSE}
+library(DynamicCancerDriverKM)
+library(e1071)
+library(caret)
+library(dplyr)
+library(pROC)
+library(tidyverse)
+library(class)
+library(rpart)
+library(glmnet)
+
+view(DynamicCancerDriverKM::BRCA_normal)
+view(DynamicCancerDriverKM::BRCA_PT)
+view(DynamicCancerDriverKM::PPI)
+
+normal_pt <- rbind(BRCA_normal, BRCA_PT)
+
+df <- normal_pt[, !(names(normal_pt) %in% c("barcode", "bcr_patient_barcode", "bcr_sample_barcode", "vital_status", "days_to_death", "treatments_radiation_treatment_or_therapy"))]
+
+any_na <- any(is.na(df))
+
+samples_matrix <- as.matrix(df[, -1])
+threshold <- 0.0002 * max(samples_matrix)
+expressed_genes <- samples_matrix > threshold
+true_per_gene <- colSums(expressed_genes)
+threshold_column <- nrow(samples_matrix) * 0.2
+columns_to_keep <- which(true_per_gene >= threshold_column)
+filtered_df <- df[, c(1, columns_to_keep + 1)]
+
+gene_names <- colnames(filtered_df)[-1]
+gene_names_conversion <- AMCBGeneUtils::changeGeneId(gene_names, from = "Ensembl.ID")
+colnames(filtered_df)[-1] <- gene_names_conversion$HGNC.symbol
+
+ppi_genes <- PPI$`Input-node Gene Symbol`
+genes <- colnames(filtered_df)[-1]
+common_genes <- intersect(ppi_genes, genes)
+common_genes_df <- PPI[ppi_genes %in% common_genes, ]
+
+input_gene_count <- common_genes_df %>%
+  group_by(`Input-node Gene Symbol`) %>%
+  summarize(count_input = n())
+
+output_gene_count <- common_genes_df %>%
+  group_by(`Output-node Gene Symbol`) %>%
+  summarize(count_output = n())
+
+counts <- full_join(input_gene_count, output_gene_count, by = c("Input-node Gene Symbol" = "Output-node Gene Symbol"))
+counts[is.na(counts)] <- 0
+counts$total_count <- rowSums(counts[, c("count_input", "count_output")])
+sorted_counts <- counts %>%
+  arrange(desc(total_count))
+top_genes <- head(sorted_counts, 100)$`Input-node Gene Symbol`
+
+y <- filtered_df$sample_type
+X <- filtered_df[, top_genes]
+y <- as.factor(y)
+
+set.seed(200)
+trainIndex <- createDataPartition(y, p = 0.8, list = FALSE)
+train_data <- X[trainIndex, ]
+test_data <- X[-trainIndex, ]
+train_labels <- y[trainIndex]
+test_labels <- y[-trainIndex]
+
+model_svm <- svm(train_labels ~ ., data = cbind(train_data, train_labels), kernel = "linear")
+predictions_svm <- predict(model_svm, newdata = cbind(test_data, test_labels))
+confusionMatrix(predictions_svm, test_labels)
+roc_curve_svm <- roc(as.numeric(predictions_svm), as.numeric(test_labels))
+
+logistic_model <- cv.glmnet(as.matrix(train_data), train_labels, family = "binomial")
+predictions_logistic <- predict(logistic_model, newx = as.matrix(test_data), s = "lambda.1se", type = "response")
+predicted_labels_logistic <- as.factor(ifelse(predictions_logistic > 0.5, levels(y)[2], levels(y)[1]))
+conf_matrix_logistic <- confusionMatrix(predicted_labels_logistic, test_labels)
+precision_logistic <- posPredValue(predicted_labels_logistic, test_labels)
+
+normalized_train_data_knn <- scale(train_data)
+normalized_test_data_knn <- scale(test_data)
+knn_model <- knn(train = normalized_train_data_knn, test = normalized_test_data_knn, cl = train_labels, k = 5)
+knn_conf_matrix <- confusionMatrix(knn_model, test_labels)
+
+tree_model <- rpart(train_labels ~ ., data = train_data, method = "class")
+tree_predictions <- predict(tree_model, newdata = test_data, type = "class")
+tree_conf_matrix <- confusionMatrix(tree_predictions, test_labels)
+
+plot(tree_model)
+text(tree_model, pretty = 0)
+
+print(confusionMatrix(predictions_svm, test_labels))
+print(roc_curve_svm)
+
+print(conf_matrix_logistic)
+print(precision_logistic)
+
+print(knn_conf_matrix)
+
+print(tree_conf_matrix)
+```
+
+#### DIFFICULTIES ENCOUNTERED:
+
+One of the main difficulties encountered was the selection of the
+hyperparameters of the models. In particular, the selection of the
+number of neighbors in KNN and the tree depth in decision trees can
+significantly affect model performance.
+
+Another difficulty encountered was the interpretation of model results.
+In particular, decision trees can be difficult to interpret due to their
+complexity.
+
+## Conclusions:
+
+Summarizing the findings emphasizes the critical link between model
+performance and its implications for real-world applications. The
+ability to discern how these models perform under various conditions is
+instrumental in shaping decisions across diverse industries. For
+instance, in healthcare, accurate predictive models could aid in early
+disease detection, optimizing treatment plans, and improving patient
+outcomes. Similarly, in finance, robust models for risk assessment and
+market predictions can steer investment strategies, mitigating potential
+losses, and maximizing returns.
+
+Understanding the nuances of model performance is not merely an academic
+exercise but a cornerstone for making informed decisions in data-driven
+environments. Roles in data science and machine learning engineering
+demand a comprehensive understanding of these models' capabilities,
+limitations, and their application in solving complex problems.
+
+Moreover, the insights gleaned from evaluating different models offer a
+roadmap for model selection, refinement, and enhancement. This process
+involves a continuous cycle of evaluation, iteration, and improvement.
+By dissecting the strengths and weaknesses of each model, practitioners
+can tailor these methodologies to suit specific needs, whether it's
+fine-tuning algorithms for better accuracy or optimizing models for
+scalability and efficiency.
+
+Furthermore, these insights go beyond model performance; they shape the
+strategies for data collection, feature engineering, and preprocessing
+techniques. Understanding the data's impact on model performance allows
+for better data-driven decision-making, leading to more robust and
+reliable models.
+
+In a constantly evolving landscape where new challenges emerge, the
+ability to grasp the intricate workings of these models provides a
+competitive edge. It enables practitioners to adapt swiftly, innovate,
+and address novel problems effectively. Embracing the complexities of
+model evaluation and improvement not only elevates the quality of
+predictive analytics but also fosters a culture of continuous learning
+and innovation within data-centric domains.
+
+### References:
+
+-   ***James, G., Witten, D., Hastie, T., & Tibshirani, R. (2013). An
+    Introduction to Statistical Learning: with Applications in R.
+    Springer.***
+
+-   ***Hastie, T., Tibshirani, R., & Friedman, J. (2009). The Elements
+    of Statistical Learning: Data Mining, Inference, and Prediction.
+    Journal of the American Statistical Association, 102(476),
+    1237-1238. <https://doi.org/10.1198/jasa.2009.tm09403>***
+
+-   ***Cruz, J. A., & Wishart, D. S. (2006). Applications of machine
+    learning in cancer prediction and prognosis. Cancer informatics, 2,
+    117693510600200030.***
+
+-   ***Wong, D., & Yip, S. (2018). Machine learning classifies
+    cancer.***
+
+-   ***Iqbal, M. J., Javed, Z., Sadia, H., Qureshi, I. A., Irshad, A.,
+    Ahmed, R., \... & Sharifi-Rad, J. (2021). Clinical applications of
+    artificial intelligence and machine learning in cancer diagnosis:
+    looking into the future. Cancer cell international, 21(1), 1-11.***
+
+-   ***Amrane, M., Oukid, S., Gagaoua, I., & Ensari, T. (2018, April).
+    Breast cancer classification using machine learning. In 2018
+    electric electronics, computer science, biomedical engineerings'
+    meeting (EBBT) (pp. 1-4). IEEE.***
